@@ -1,9 +1,10 @@
-from pydantic import BaseSettings
+import yaml
+from pathlib import Path
 
-class Settings(BaseSettings):
-    DATABASE_URL: str
+def load_secrets():
+    """프로젝트 루트의 secrets.yml 파일을 읽어 설정 반환"""
+    secrets_path = Path(__file__).resolve().parent.parent.parent / "secrets.yml"
+    with open(secrets_path, "r") as f:
+        return yaml.safe_load(f)
 
-    class Config:
-        env_file = ".env"
-
-settings = Settings()
+secrets = load_secrets()
