@@ -10,6 +10,9 @@ env/
 .vscode/
 *.log
 
+# Secrets
+secrets.yml
+
 # OS
 .DS_Store
 Thumbs.db
