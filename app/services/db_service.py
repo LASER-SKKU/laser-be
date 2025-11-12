@@ -1,3 +1,4 @@
+# db_service.py
 from sqlalchemy.orm import Session
 from app.models.lab import Lab
 from app.models.paper import Paper
@@ -12,6 +13,8 @@ def insert_lab_with_summary(
     homepage_text: str = None,
     homepage_url: str = None,
     google_scholar_url: str = None,
+    image_url: str = None,
+    education_text: str = None,
 ):
     """Generate an English summary of a lab introduction and store it in MySQL"""
     summary = generate_lab_summary(homepage_text)
@@ -24,6 +27,8 @@ def insert_lab_with_summary(
         summary=summary,
         homepage_url=homepage_url,
         google_scholar_url=google_scholar_url,
+        image_url=image_url, 
+        education_text=education_text,
     )
     db.add(lab)
     db.commit()
@@ -48,6 +53,7 @@ def insert_paper_with_summary(
     paper = Paper(
         lab_id=lab_id,
         title=title,
+        abstract=abstract_text, 
         summary=summary,
         publication_year=publication_year,
         keywords=keywords,
