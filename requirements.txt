@@ -8,3 +8,5 @@ alembic
 PyYAML
 openai
 cryptography
+python-multipart
+pymilvus
