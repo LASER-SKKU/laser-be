@@ -123,7 +123,8 @@ def load_papers_json_to_mysql(db: Session, file_path: str) -> dict:
         publication_year = item.get("publication_year")
         google_scholar_url = item.get("paper_url")
         citation_count = item.get("citation_count", 0)
-        keywords = item.get("keywords")  # 있을 경우 JSON으로 그대로 저장 가능
+        journal = item.get("journal")
+        keywords = item.get("keywords")
         doi = item.get("doi")
 
         try:
@@ -134,6 +135,7 @@ def load_papers_json_to_mysql(db: Session, file_path: str) -> dict:
                 title=str(title).strip(),
                 abstract_text=abstract,  # Paper.abstract 에 저장됨
                 publication_year=publication_year,
+                journal=journal,
                 keywords=keywords,
                 citation_count=citation_count if isinstance(citation_count, int) else 0,
                 doi=doi,
