@@ -11,6 +11,7 @@ class Lab(Base):
     lab_name = Column(String(150))
     university = Column(String(100))
     department = Column(String(100))
+    major = Column(String(100)) 
     summary = Column(Text)
     homepage_url = Column(String(255))
     google_scholar_url = Column(String(255))
