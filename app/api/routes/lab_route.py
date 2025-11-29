@@ -24,6 +24,7 @@ class LabSummary(BaseModel):
     """목록 응답용(가벼운) 스키마: 불필요한 필드는 제외하고 논문도 포함하지 않음"""
     lab_id: int
     professor_name: str
+    image_url: Optional[str] = None
     university: Optional[str] = None
     department: Optional[str] = None
     summary: Optional[str] = None
@@ -35,6 +36,7 @@ class LabDetail(BaseModel):
     """상세 응답용 스키마: 논문 목록 포함"""
     lab_id: int
     professor_name: str
+    image_url: Optional[str] = None
     university: Optional[str] = None
     department: Optional[str] = None
     summary: Optional[str] = None
