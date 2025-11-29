@@ -172,6 +172,19 @@ def recommend_labs(db: Session, user_text: str, similarity_threshold: float = 0.
         output_fields=["lab_id", "professor_name", "department"],
     )
 
+    # ------------------------------------
+    # ⭐ 논문 검색 추가
+    # ------------------------------------
+    similar_papers_global = search_similar_papers(query_embedding)
+
+    # 연구실별 유사 논문 유사도 그룹화
+    paper_by_lab = {}
+    for p in similar_papers_global:
+        lab_id = p["lab_id"]
+        if lab_id not in paper_by_lab:
+            paper_by_lab[lab_id] = []
+        paper_by_lab[lab_id].append(p["similarity"])
+
     # ⭐ log-normalization용 max_count 구하기
     max_count = max((len(v) for v in paper_by_lab.values()), default=1)
     max_log = math.log(1 + max_count)
