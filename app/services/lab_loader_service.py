@@ -36,6 +36,7 @@ def load_lab_json_to_mysql(db: Session, file_path: str):
             lab_name = lab_data.get("lab_name")  # nullable
             university = lab_data.get("university")
             department = lab_data.get("department")
+            major = lab_data.get("major")
             homepage_url = lab_data.get("homepage_url")
             google_scholar_url = lab_data.get("google_scholar_url")
             image_url = lab_data.get("image_url")
@@ -69,6 +70,7 @@ def load_lab_json_to_mysql(db: Session, file_path: str):
                 lab_name=lab_name,
                 university=university,
                 department=department,
+                major=major,
                 summary=summary,
                 homepage_url=homepage_url,
                 google_scholar_url=google_scholar_url,
