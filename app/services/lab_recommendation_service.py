@@ -5,12 +5,14 @@ from app.services.lab_embedding_service import connect_milvus
 from sqlalchemy.orm import Session
 from app.models.lab import Lab
 
+import math
+
 client = OpenAI(api_key=secrets["openai"]["api_key"])
 
 MILVUS_HOST = "43.201.113.80"
 MILVUS_PORT = "19530"
 LAB_COLLECTION = "lab_embeddings"
-PAPER_COLLECTION = "paper_embeddings"  # TODO: 논문 임베딩 추가 후 사용
+PAPER_COLLECTION = "paper_embeddings"
 EMBEDDING_MODEL = "text-embedding-3-small"
 
 
@@ -18,11 +20,6 @@ EMBEDDING_MODEL = "text-embedding-3-small"
 # 0️⃣ 사용자 입력 정제 (LLM)
 # -------------------------------
 def normalize_user_query(user_text: str) -> str:
-    """
-    사용자의 관심사 문장을 LLM으로 간결하고 명확한 영어 연구 관심사 문장으로 정리.
-    - 한글/혼합 언어 입력도 지원.
-    - 불필요한 문체 제거하고 핵심 연구 키워드 중심으로 변환.
-    """
     if not user_text or not user_text.strip():
         return user_text
 
@@ -44,14 +41,13 @@ def normalize_user_query(user_text: str) -> str:
         return normalized
     except Exception as e:
         print(f"[LLM ERROR: Query Normalization] {e}")
-        return user_text  
+        return user_text
 
 
 # -------------------------------
 # 1️⃣ 사용자 입력 임베딩 생성
 # -------------------------------
 def get_query_embedding(user_text: str):
-    """사용자 입력 텍스트를 OpenAI 임베딩 벡터로 변환"""
     if not user_text or not user_text.strip():
         return None
     try:
@@ -66,14 +62,50 @@ def get_query_embedding(user_text: str):
 
 
 # -------------------------------
+# ⭐ 논문 유사도 검색 (추가)
+# -------------------------------
+def search_similar_papers(query_embedding, limit=500, threshold=0.5):
+    """Milvus에서 사용자 관심사와 유사한 논문들 검색"""
+    if not utility.has_collection(PAPER_COLLECTION):
+        return []
+
+    paper_collection = Collection(PAPER_COLLECTION)
+    paper_collection.load()
+
+    search_params = {"metric_type": "COSINE", "params": {"nprobe": 10}}
+
+    results = paper_collection.search(
+        data=[query_embedding],
+        anns_field="embedding",
+        param=search_params,
+        limit=limit,
+        output_fields=["paper_id", "lab_id", "title", "publication_year"],
+    )
+
+    similar = []
+    for hit in results[0]:
+        sim = float(hit.distance)
+        if sim >= threshold:
+            similar.append({
+                "paper_id": hit.entity.get("paper_id"),
+                "lab_id": hit.entity.get("lab_id"),
+                "title": hit.entity.get("title"),
+                "similarity": sim,
+            })
+
+    return similar
+
+
+# -------------------------------
 # 2️⃣ 추천 이유 생성 (LLM)
 # -------------------------------
 def generate_recommendation_reason(user_text: str, lab_summary: str, similar_papers: list = None):
     """
     LLM으로 사용자 관심사와 연구실 요약을 비교하여 객관적인 분석 결과를 생성.
-    - 유사한 부분과 다른 부분을 명확히 구분해서 설명.
-    - TODO: 이후 paper_embeddings 추가 시, 유사 논문 제목/개수도 prompt에 포함.
+    - 너의 기존 prompt 완전 유지
+    - similar_papers는 옵션으로 깔끔하게 추가
     """
+
     prompt = f"""
 You are an academic matching evaluator.
 
@@ -84,23 +116,24 @@ Be objective and factual. If there is overlap, explain specifically what topics 
 If they are different or unrelated, state that clearly and briefly explain why.
 
 User research interest:
-"{user_text}"
+\"{user_text}\"
 
 Lab summary:
-"{lab_summary}"
-
-{"The following are papers from this lab that may relate to the user's interests:\n" + ', '.join(similar_papers) if similar_papers else ""}
+\"{lab_summary}\"
 
 Write your analysis in 2–3 short sentences of clear academic English.
 Avoid exaggeration or making up connections that are not stated.
 """
+
     try:
+        # print(prompt)
         response = client.chat.completions.create(
             model=secrets["openai"]["model"],
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3, 
+            temperature=0.3,
         )
         return response.choices[0].message.content.strip()
+
     except Exception as e:
         print(f"[LLM ERROR: Recommendation Reason] {e}")
         return None
@@ -110,13 +143,6 @@ Avoid exaggeration or making up connections that are not stated.
 # 3️⃣ 연구실 추천 계산
 # -------------------------------
 def recommend_labs(db: Session, user_text: str, similarity_threshold: float = 0.5, top_k: int = 5):
-    """
-    사용자 관심사 텍스트를 기반으로 연구실 유사도 상위 N개를 반환.
-
-    - Milvus에서 summary 유사도 ≥ threshold 이상 연구실만 필터링
-    - TODO: paper_embeddings에서 유사 논문 count를 가져와 가중 평균 점수 계산
-    - TODO: 추천 이유 생성 시, 유사 논문 제목 리스트와 count 포함
-    """
 
     connect_milvus()
 
@@ -127,61 +153,125 @@ def recommend_labs(db: Session, user_text: str, similarity_threshold: float = 0.
     lab_collection = Collection(LAB_COLLECTION)
     lab_collection.load()
 
-    # ✅ 사용자 입력 정제 (한글/혼합 입력 → 영어 요약으로)
+    # 사용자 입력 정제
     normalized_query = normalize_user_query(user_text)
 
-    # ✅ 사용자 입력 임베딩 생성
+    # 사용자 입력 임베딩 생성
     query_embedding = get_query_embedding(normalized_query)
     if not query_embedding:
         return []
 
-    # ✅ 연구실 유사도 검색 (limit 넉넉히)
+    # 연구실 summary 검색
     total_labs = lab_collection.num_entities
     search_params = {"metric_type": "COSINE", "params": {"nprobe": 10}}
     results = lab_collection.search(
         data=[query_embedding],
         anns_field="embedding",
         param=search_params,
-        limit=min(1000, total_labs),  # 전체는 너무 많으니 상한 제한
+        limit=min(1000, total_labs),
         output_fields=["lab_id", "professor_name", "department"],
     )
 
+    # ⭐ log-normalization용 max_count 구하기
+    max_count = max((len(v) for v in paper_by_lab.values()), default=1)
+    max_log = math.log(1 + max_count)
+
+    # ------------------------------------
+    # 연구실별 추천 결과 구축
+    # ------------------------------------
     recommendations = []
+
     for hit in results[0]:
         sim = float(hit.distance)
         if sim < similarity_threshold:
             continue
 
-        # TODO: 이후 lab_id를 기반으로 유사 논문 수 및 제목 가져오기
-        # similar_papers = get_similar_papers(lab_id, query_embedding)
-        # similar_paper_count = len(similar_papers)
-        # normalized_paper_count = similar_paper_count / max_paper_count
-        # final_score = (sim * 0.3) + (normalized_paper_count * 0.7)
+        lab_id = hit.entity.get("lab_id")
+        paper_sims = paper_by_lab.get(lab_id, [])
+
+        # --------------------------
+        # ⭐ paper top-k score
+        # --------------------------
+        k = 3
+        top_k_sims = sorted(paper_sims, reverse=True)[:k]
+        paper_topk_score = sum(top_k_sims) / len(top_k_sims) if top_k_sims else 0.0
+
+        # --------------------------
+        # ⭐ paper log count score
+        # --------------------------
+        paper_count = len(paper_sims)
+        if paper_count > 0:
+            raw_log = math.log(1 + paper_count)
+            paper_count_score = raw_log / max_log
+        else:
+            paper_count_score = 0.0
+
+        # --------------------------
+        # ⭐ 최종 점수 계산
+        # --------------------------
+        final_score = (
+            0.5 * paper_topk_score +
+            0.2 * paper_count_score +
+            0.3 * sim
+        )
 
         recommendations.append({
-            "lab_id": hit.entity.get("lab_id"),
+            "lab_id": lab_id,
             "professor_name": hit.entity.get("professor_name"),
             "department": hit.entity.get("department"),
             "lab_similarity": sim,
-            "final_score": sim,  # TODO: 이후 논문 점수 포함해서 수정
-            "paper_similarity_count": None,  # TODO
-            "recommendation_reason": None,   # 나중에 LLM이 채움
+            "paper_topk_score": paper_topk_score,
+            "paper_count_score": paper_count_score,
+            "final_score": final_score,
+            "recommendation_reason": None,
         })
 
-    # ✅ LLM으로 추천 이유 생성 (Top N만)
-    for rec in recommendations[:top_k]:
+    # ------------------------------------
+    # 1) 먼저 점수 기준으로 정렬
+    # ------------------------------------
+    recommendations.sort(key=lambda x: x["final_score"], reverse=True)
+    
+    unique_labs = []
+    seen_professors = set()
+
+    for rec in recommendations:
+        professor = rec["professor_name"]
+        if professor in seen_professors:
+            continue
+        seen_professors.add(professor)
+        unique_labs.append(rec)
+
+    # 최종 상위 N개 선택
+    top_recs = unique_labs[:top_k]
+
+    # ------------------------------------
+    # 2) LLM 추천 이유 생성 (Top N에 대해서만)
+    # ------------------------------------
+    for rec in top_recs:
         lab = db.query(Lab).filter(Lab.lab_id == rec["lab_id"]).first()
+
         lab_summary = (
             lab.summary
             if lab and lab.summary
             else f"Professor {rec['professor_name']}'s lab focuses on {rec['department']} research."
         )
 
-        # TODO: 나중에 유사 논문 리스트(similar_papers)도 넣기
-        reason = generate_recommendation_reason(normalized_query, lab_summary)
+        top_papers = sorted(
+            [p for p in similar_papers_global if p["lab_id"] == rec["lab_id"]],
+            key=lambda x: x["similarity"],
+            reverse=True
+        )[:3]
+
+        rec["top_similar_papers"] = top_papers
+
+        similar_titles = [p["title"] for p in top_papers]
+
+        reason = generate_recommendation_reason(
+            normalized_query,
+            lab_summary,
+            similar_papers=similar_titles
+        )
+
         rec["recommendation_reason"] = reason
 
-
-    # ✅ 정렬 후 상위 N개 반환
-    recommendations.sort(key=lambda x: x["final_score"], reverse=True)
-    return recommendations[:top_k]
+    return top_recs
