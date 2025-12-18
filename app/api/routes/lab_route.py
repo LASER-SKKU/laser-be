@@ -27,6 +27,7 @@ class LabSummary(BaseModel):
     image_url: Optional[str] = None
     university: Optional[str] = None
     department: Optional[str] = None
+    major: Optional[str] = None
     summary: Optional[str] = None
 
     model_config = {"from_attributes": True}  # Pydantic v2
@@ -39,6 +40,7 @@ class LabDetail(BaseModel):
     image_url: Optional[str] = None
     university: Optional[str] = None
     department: Optional[str] = None
+    major: Optional[str] = None
     summary: Optional[str] = None
     homepage_url: Optional[str] = None
     google_scholar_url: Optional[str] = None
