@@ -1,0 +1,23 @@
+# paper.py
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, TIMESTAMP, JSON
+from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
+from app.core.database import Base
+
+class Paper(Base):
+    __tablename__ = "papers"
+
+    paper_id = Column(Integer, primary_key=True, autoincrement=True)
+    lab_id = Column(Integer, ForeignKey("labs.lab_id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(500), nullable=False)
+    abstract = Column(Text)
+    summary = Column(Text)
+    publication_year = Column(Integer) 
+    journal = Column(String(300))
+    keywords = Column(JSON)
+    citation_count = Column(Integer, default=0)
+    doi = Column(String(100))
+    google_scholar_url = Column(String(500))
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    lab = relationship("Lab", backref="papers")

@@ -5,3 +5,8 @@ pymysql
 python-dotenv
 pydantic[dotenv]
 alembic
+PyYAML
+openai
+cryptography
+python-multipart
+pymilvus
