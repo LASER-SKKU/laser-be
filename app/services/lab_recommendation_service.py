@@ -223,9 +223,9 @@ def recommend_labs(db: Session, user_text: str, similarity_threshold: float = 0.
         # ⭐ 최종 점수 계산
         # --------------------------
         final_score = (
-            0.5 * paper_topk_score +
+            0.3 * paper_topk_score +
             0.2 * paper_count_score +
-            0.3 * sim
+            0.5 * sim
         )
 
         recommendations.append({
