@@ -17,7 +17,7 @@ class PaperInLab(BaseModel):
     publication_year: Optional[int] = None
     citation_count: int = 0
 
-    model_config = {"from_attributes": True}  # Pydantic v2
+    model_config = {"from_attributes": True}
 
 
 class LabSummary(BaseModel):
@@ -30,7 +30,7 @@ class LabSummary(BaseModel):
     major: Optional[str] = None
     summary: Optional[str] = None
 
-    model_config = {"from_attributes": True}  # Pydantic v2
+    model_config = {"from_attributes": True}
 
 
 class LabDetail(BaseModel):
@@ -46,10 +46,9 @@ class LabDetail(BaseModel):
     google_scholar_url: Optional[str] = None
     papers: List[PaperInLab] = Field(default_factory=list)
 
-    model_config = {"from_attributes": True}  # Pydantic v2
+    model_config = {"from_attributes": True}
 
 
-# ------------------------------ Routes ------------------------------
 @router.get("/{lab_id}", response_model=LabDetail, status_code=status.HTTP_200_OK)
 def get_lab_detail(lab_id: int, db: Session = Depends(get_db)):
     """
@@ -86,7 +85,6 @@ def list_labs_by_department(
     """
     query = (
         db.query(Lab)
-        # 목록은 가볍게: papers 미로딩
         .filter(Lab.department.ilike(f"%{department}%"))
     )
 

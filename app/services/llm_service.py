@@ -5,9 +5,7 @@ from app.core.config import secrets
 client = OpenAI(api_key=secrets["openai"]["api_key"])
 
 
-# -------------------------------
-# 1️⃣ Lab Summary (Research Lab)
-# -------------------------------
+# 1️. Lab Summary (Research Lab)
 def generate_lab_summary(lab_intro_text: str, department: str | None = None) -> str:
     """
     Summarize a research lab introduction into a short English profile
@@ -20,7 +18,6 @@ def generate_lab_summary(lab_intro_text: str, department: str | None = None) -> 
     if not lab_intro_text or len(lab_intro_text.strip()) == 0:
         return None
 
-    # 프롬프트 구성
     prompt = f"""
 You are a research profiling assistant.
 
@@ -58,9 +55,7 @@ Very important:
         return None
 
 
-# -------------------------------
-# 2️⃣ Paper Summary (Academic Paper)
-# -------------------------------
+# 2️. Paper Summary (Academic Paper)
 def generate_paper_summary(title: str, abstract: str) -> str:
     """
     Summarize a research paper (title + abstract) into a concise, factual English summary.

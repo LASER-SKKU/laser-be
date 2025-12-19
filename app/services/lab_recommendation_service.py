@@ -9,16 +9,16 @@ import math
 
 client = OpenAI(api_key=secrets["openai"]["api_key"])
 
-MILVUS_HOST = "43.201.113.80"
-MILVUS_PORT = "19530"
-LAB_COLLECTION = "lab_embeddings"
-PAPER_COLLECTION = "paper_embeddings"
-EMBEDDING_MODEL = "text-embedding-3-small"
+MILVUS_HOST = secrets["milvus"]["host"]
+MILVUS_PORT = secrets["milvus"]["port"]
+
+LAB_COLLECTION = secrets["milvus"]["lab_collection"]
+PAPER_COLLECTION = secrets["milvus"]["paper_collection"]
+
+EMBEDDING_MODEL = secrets["embedding"]["model"]
 
 
-# -------------------------------
-# 0️⃣ 사용자 입력 정제 (LLM)
-# -------------------------------
+# 0. 사용자 입력 정제 (LLM)
 def normalize_user_query(user_text: str) -> str:
     if not user_text or not user_text.strip():
         return user_text
@@ -44,9 +44,7 @@ def normalize_user_query(user_text: str) -> str:
         return user_text
 
 
-# -------------------------------
-# 1️⃣ 사용자 입력 임베딩 생성
-# -------------------------------
+# 1️. 사용자 입력 임베딩 생성
 def get_query_embedding(user_text: str):
     if not user_text or not user_text.strip():
         return None
@@ -61,9 +59,8 @@ def get_query_embedding(user_text: str):
         return None
 
 
-# -------------------------------
-# ⭐ 논문 유사도 검색 (추가)
-# -------------------------------
+# 논문 유사도 검색 (추가)
+
 def search_similar_papers(query_embedding, limit=500, threshold=0.5):
     """Milvus에서 사용자 관심사와 유사한 논문들 검색"""
     if not utility.has_collection(PAPER_COLLECTION):
@@ -96,9 +93,7 @@ def search_similar_papers(query_embedding, limit=500, threshold=0.5):
     return similar
 
 
-# -------------------------------
-# 2️⃣ 추천 이유 생성 (LLM)
-# -------------------------------
+# 2️. 추천 이유 생성 (LLM)
 def generate_recommendation_reason(user_text: str, lab_summary: str, similar_papers: list = None):
     """
     LLM으로 사용자 관심사와 연구실 요약을 비교하여 객관적인 분석 결과를 생성.
@@ -139,9 +134,7 @@ Avoid exaggeration or making up connections that are not stated.
         return None
 
 
-# -------------------------------
-# 3️⃣ 연구실 추천 계산
-# -------------------------------
+# 3️. 연구실 추천 계산
 def recommend_labs(db: Session, user_text: str, similarity_threshold: float = 0.5, top_k: int = 5):
 
     connect_milvus()
@@ -153,10 +146,8 @@ def recommend_labs(db: Session, user_text: str, similarity_threshold: float = 0.
     lab_collection = Collection(LAB_COLLECTION)
     lab_collection.load()
 
-    # 사용자 입력 정제
     normalized_query = normalize_user_query(user_text)
 
-    # 사용자 입력 임베딩 생성
     query_embedding = get_query_embedding(normalized_query)
     if not query_embedding:
         return []
@@ -172,9 +163,6 @@ def recommend_labs(db: Session, user_text: str, similarity_threshold: float = 0.
         output_fields=["lab_id", "professor_name", "department"],
     )
 
-    # ------------------------------------
-    # ⭐ 논문 검색 추가
-    # ------------------------------------
     similar_papers_global = search_similar_papers(query_embedding)
 
     # 연구실별 유사 논문 유사도 그룹화
@@ -185,13 +173,9 @@ def recommend_labs(db: Session, user_text: str, similarity_threshold: float = 0.
             paper_by_lab[lab_id] = []
         paper_by_lab[lab_id].append(p["similarity"])
 
-    # ⭐ log-normalization용 max_count 구하기
     max_count = max((len(v) for v in paper_by_lab.values()), default=1)
     max_log = math.log(1 + max_count)
 
-    # ------------------------------------
-    # 연구실별 추천 결과 구축
-    # ------------------------------------
     recommendations = []
 
     for hit in results[0]:
@@ -202,16 +186,12 @@ def recommend_labs(db: Session, user_text: str, similarity_threshold: float = 0.
         lab_id = hit.entity.get("lab_id")
         paper_sims = paper_by_lab.get(lab_id, [])
 
-        # --------------------------
-        # ⭐ paper top-k score
-        # --------------------------
+        # paper top-k score
         k = 3
         top_k_sims = sorted(paper_sims, reverse=True)[:k]
         paper_topk_score = sum(top_k_sims) / len(top_k_sims) if top_k_sims else 0.0
 
-        # --------------------------
-        # ⭐ paper log count score
-        # --------------------------
+        # paper log count score
         paper_count = len(paper_sims)
         if paper_count > 0:
             raw_log = math.log(1 + paper_count)
@@ -219,9 +199,7 @@ def recommend_labs(db: Session, user_text: str, similarity_threshold: float = 0.
         else:
             paper_count_score = 0.0
 
-        # --------------------------
-        # ⭐ 최종 점수 계산
-        # --------------------------
+        # 최종 점수 계산
         final_score = (
             0.3 * paper_topk_score +
             0.2 * paper_count_score +
@@ -239,9 +217,7 @@ def recommend_labs(db: Session, user_text: str, similarity_threshold: float = 0.
             "recommendation_reason": None,
         })
 
-    # ------------------------------------
     # 1) 먼저 점수 기준으로 정렬
-    # ------------------------------------
     recommendations.sort(key=lambda x: x["final_score"], reverse=True)
     
     unique_labs = []
@@ -257,9 +233,7 @@ def recommend_labs(db: Session, user_text: str, similarity_threshold: float = 0.
     # 최종 상위 N개 선택
     top_recs = unique_labs[:top_k]
 
-    # ------------------------------------
     # 2) LLM 추천 이유 생성 (Top N에 대해서만)
-    # ------------------------------------
     for rec in top_recs:
         lab = db.query(Lab).filter(Lab.lab_id == rec["lab_id"]).first()
 
