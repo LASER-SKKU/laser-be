@@ -7,17 +7,15 @@ from app.services.lab_recommendation_service import recommend_labs
 
 router = APIRouter(prefix="/labs", tags=["Labs Recommendation"])
 
-# ✅ 요청 body 스키마 정의
 class RecommendRequest(BaseModel):
     user_text: str
     similarity_threshold: float = 0.5
     top_k: int = 5
 
 
-# ✅ Body로 받는 올바른 방식
 @router.post("/recommend")
 def recommend_labs_endpoint(
-    req: RecommendRequest = Body(...),  # 👈 JSON body로 받음
+    req: RecommendRequest = Body(...),
     db: Session = Depends(get_db),
 ):
     """
@@ -30,7 +28,6 @@ def recommend_labs_endpoint(
       }
     """
     try:
-        # ✅ req 객체로부터 값 추출
         results = recommend_labs(
             db=db,
             user_text=req.user_text,

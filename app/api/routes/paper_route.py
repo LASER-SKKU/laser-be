@@ -10,7 +10,6 @@ from app.models.lab import Lab
 
 router = APIRouter(prefix="/papers", tags=["Papers"])
 
-# ---------- Pydantic Schemas ----------
 class PaperSummary(BaseModel):
     """목록 응답용(가벼운) 스키마"""
     paper_id: int
@@ -37,7 +36,6 @@ class PaperDetail(BaseModel):
     model_config = {"from_attributes": True}  # Pydantic v2
 
 
-# ------------------------------ Routes ------------------------------
 @router.get("/{paper_id}", response_model=PaperDetail, status_code=status.HTTP_200_OK)
 def get_paper_detail(paper_id: int, db: Session = Depends(get_db)):
     """
