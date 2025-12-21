@@ -9,14 +9,14 @@ from sqlalchemy.orm import Session
 from app.core.config import secrets
 from app.models.lab import Lab
 
-# -------------------------------
-# Milvus / OpenAI 설정
-# -------------------------------
-MILVUS_HOST = "43.201.113.80"
-MILVUS_PORT = "19530"
-COLLECTION_NAME = "lab_embeddings"
-EMBEDDING_MODEL = "text-embedding-3-small"
-DIMENSION = 1536
+
+MILVUS_HOST = secrets["milvus"]["host"]
+MILVUS_PORT = secrets["milvus"]["port"]
+
+COLLECTION_NAME = secrets["milvus"]["lab_collection"]
+
+EMBEDDING_MODEL = secrets["embedding"]["model"]
+DIMENSION = secrets["embedding"]["dimension"]
 
 client = OpenAI(api_key=secrets["openai"]["api_key"])
 
@@ -173,7 +173,7 @@ def drop_lab_collection() -> dict:
 
     try:
         utility.drop_collection(COLLECTION_NAME)
-        print(f"🗑️ Dropped collection '{COLLECTION_NAME}'.")
+        print(f"Dropped collection '{COLLECTION_NAME}'.")
         return {"collection": COLLECTION_NAME, "deleted": True}
     except Exception as e:
         print(f"[Milvus Drop Error] {e}")

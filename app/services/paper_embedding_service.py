@@ -9,11 +9,13 @@ from sqlalchemy.orm import Session
 from app.core.config import secrets
 from app.models.paper import Paper
 
-MILVUS_HOST = "43.201.113.80"
-MILVUS_PORT = "19530"
-COLLECTION_NAME = "paper_embeddings"
-EMBEDDING_MODEL = "text-embedding-3-small"
-DIMENSION = 1536
+MILVUS_HOST = secrets["milvus"]["host"]
+MILVUS_PORT = secrets["milvus"]["port"]
+
+COLLECTION_NAME = secrets["milvus"]["paper_collection"]
+
+EMBEDDING_MODEL = secrets["embedding"]["model"]
+DIMENSION = secrets["embedding"]["dimension"]
 
 client = OpenAI(api_key=secrets["openai"]["api_key"])
 
@@ -113,9 +115,7 @@ def insert_paper_embeddings(db: Session, embed_batch_size: int = 100, milvus_bat
         text_buffer.append(paper.summary.strip())
         paper_buffer.append(paper)
 
-        # -----------------------------------------
-        # 🔥 Batch Embedding (100개 단위)
-        # -----------------------------------------
+        # Batch Embedding (100개 단위)
         if len(text_buffer) >= embed_batch_size:
 
             try:
@@ -145,9 +145,7 @@ def insert_paper_embeddings(db: Session, embed_batch_size: int = 100, milvus_bat
             text_buffer.clear()
             paper_buffer.clear()
 
-            # -----------------------------------------
-            # 🔥 Milvus Batch Insert (200개 단위)
-            # -----------------------------------------
+            # Milvus Batch Insert (200개 단위)
             if len(milvus_ids) >= milvus_batch_size:
                 try:
                     collection.insert([
@@ -171,9 +169,7 @@ def insert_paper_embeddings(db: Session, embed_batch_size: int = 100, milvus_bat
                 milvus_years.clear()
                 milvus_vecs.clear()
 
-    # -----------------------------------------
-    # 🔥 마지막 남은 Embedding batch 처리
-    # -----------------------------------------
+    # 마지막 남은 Embedding batch 처리
     if text_buffer:
         try:
             resp = client.embeddings.create(
@@ -195,9 +191,7 @@ def insert_paper_embeddings(db: Session, embed_batch_size: int = 100, milvus_bat
         embedded_count += len(text_buffer)
         print(f"[Embedding Done] {embedded_count}/{total}")
 
-    # -----------------------------------------
-    # 🔥 마지막 Milvus batch insert
-    # -----------------------------------------
+    # 마지막 Milvus batch insert
     if milvus_ids:
         try:
             collection.insert([
